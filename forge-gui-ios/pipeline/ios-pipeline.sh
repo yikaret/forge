@@ -20,7 +20,7 @@
 #   pipeline/ios-pipeline.sh device      # build + sign + install to iPad
 #
 # Typical merge workflow:
-#   git pull && mvn clean install -pl forge-core,forge-game,forge-gui,forge-gui-mobile,forge-ai -DskipTests
+#   git pull && mvn clean install -pl .,forge-core,forge-game,forge-gui,forge-gui-mobile,forge-ai -DskipTests
 #   pipeline/ios-pipeline.sh classpath   # check the audit report it prints
 #   pipeline/ios-pipeline.sh sim         # or: device
 #
@@ -404,67 +404,6 @@ prep_build() {
     build_module
 }
 
-# Replace an app framework's DEVICE binary with the iOS-SIMULATOR slice from the
-# gdx -natives-ios jar's xcframework. RoboVM 2.3.24 extracts the ios-arm64 (device)
-# slice for an arm64-simulator build, which dyld refuses to load in the simulator.
-_swap_sim_framework() { # <framework> <natives-ios-jar> <app>
-    local fw="$1" jar="$2" app="$3"
-    local sub="META-INF/robovm/ios/libs/$fw.xcframework/ios-arm64_x86_64-simulator/$fw.framework/$fw"
-    local tmp; tmp="$(mktemp -d)"
-    if unzip -o -q "$jar" "$sub" -d "$tmp" 2>/dev/null && [ -f "$tmp/$sub" ]; then
-        cp "$tmp/$sub" "$app/Frameworks/$fw.framework/$fw"
-    else
-        echo "WARN: no iOS-simulator slice for $fw in $(basename "$jar")"
-    fi
-    rm -rf "$tmp"
-}
-
-# Assemble a runnable arm64 iOS-SIMULATOR .app. RoboVM 2.3.24's robovm:ipad-sim
-# goal cannot launch arm64 simulators on Apple Silicon — its device-type table
-# predates them, so it aborts at device selection BEFORE bundling the .app. But
-# its build() already produced the linked binary + a resolved config.xml, so we
-# finish with the standalone AppCompiler and fix up the simulator platform tags
-# the maven launch path would otherwise have handled.
-assemble_arm64_sim_app() {
-    local TMP="$ROOT/forge-gui-ios/target/robovm.tmp"
-    local APP="$TMP/$APP_EXEC.app"
-    local RVHOME CJ
-    RVHOME="$(ls -d "$M2"/com/mobidevelop/robovm/robovm-dist/*/unpacked/robovm-* 2>/dev/null | sort | tail -1)"
-    CJ="$(ls "$M2"/com/mobidevelop/robovm/robovm-dist-compiler/*/robovm-dist-compiler-*.jar 2>/dev/null | sort | tail -1)"
-    [ -f "$TMP/config.xml" ] || { echo "config.xml missing — robovm build did not run"; exit 1; }
-    echo "=== assemble arm64 iOS-simulator .app (RoboVM 2.3.24 can't launch AS sims via maven) ==="
-
-    # 1. resolve robovm.properties placeholders the mojo left in config.xml
-    if sed --version >/dev/null 2>&1; then SEDI=(sed -i); else SEDI=(sed -i ''); fi
-    cp "$TMP/config.xml" "$TMP/config-sim.xml"
-    "${SEDI[@]}" -e "s/\${app.id}/$APP_ID/g" -e "s/\${app.executable}/$APP_EXEC/g" "$TMP/config-sim.xml"
-
-    # 2. bundle the .app via the standalone compiler (no device selection); reuses the AOT cache
-    rm -rf "$APP"; mkdir -p "$APP"
-    ROBOVM_HOME="$RVHOME" java -cp "$CJ" org.robovm.compiler.AppCompiler \
-        -config "$TMP/config-sim.xml" -properties "$PROPS" -skipsign -d "$APP" "$APP_EXEC" \
-        > "$TMP/appcompiler-sim.log" 2>&1 \
-        || { echo "AppCompiler install failed:"; tail -8 "$TMP/appcompiler-sim.log"; exit 1; }
-
-    # 3. re-stamp the main binary as iOS-simulator (AppCompiler writes device LC_VERSION_MIN_IPHONEOS)
-    local SDKV; SDKV="$(xcrun --sdk iphonesimulator --show-sdk-version)"
-    vtool -set-build-version 7 14.0 "$SDKV" -replace -output "$APP/$APP_EXEC.sim" "$APP/$APP_EXEC"
-    mv -f "$APP/$APP_EXEC.sim" "$APP/$APP_EXEC"
-
-    # 4. swap device framework slices -> simulator slices
-    local GDX="$CLONE/com/badlogicgames/gdx"
-    _swap_sim_framework gdx          "$GDX/gdx-platform/1.13.5/gdx-platform-1.13.5-natives-ios.jar"                   "$APP"
-    _swap_sim_framework ObjectAL     "$GDX/gdx-platform/1.13.5/gdx-platform-1.13.5-natives-ios.jar"                   "$APP"
-    _swap_sim_framework gdx-freetype "$GDX/gdx-freetype-platform/1.13.5/gdx-freetype-platform-1.13.5-natives-ios.jar" "$APP"
-    _swap_sim_framework gdx-box2d    "$GDX/gdx-box2d-platform/1.13.5/gdx-box2d-platform-1.13.5-natives-ios.jar"       "$APP"
-
-    # 5. ad-hoc sign (the simulator refuses to launch an unsigned bundle)
-    local f
-    for f in "$APP"/Frameworks/*.framework; do codesign --force --sign - --timestamp=none "$f" >/dev/null 2>&1; done
-    codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1
-    echo "assembled: $APP ($(lipo -info "$APP/$APP_EXEC" | sed 's/.*://'), $(vtool -show-build "$APP/$APP_EXEC" 2>/dev/null | grep -i platform | tr -d ' '))"
-}
-
 sim() {
     require_env SIM_UDID
     prep_build
@@ -474,18 +413,25 @@ sim() {
     cp "$OSLOG_LIB" "$OSLOG_LIB.committed"
     trap 'mv -f "$OSLOG_LIB.committed" "$OSLOG_LIB" 2>/dev/null || true' EXIT
     build_oslog sim
-    echo "=== robovm ipad-sim build ($SIM_ARCH) ==="
-    # On Apple Silicon (arch=arm64-simulator) this fails at the mojo's device
-    # selection AFTER producing the binary + config.xml — expected; we assemble
-    # the .app ourselves below. On Intel (x86_64) it produces the .app directly.
-    (cd "$ROOT/forge-gui-ios" && mvn robovm:ipad-sim --settings "$SETTINGS" \
-        -Dmaven.repo.local="$CLONE" -Drobovm.arch="$SIM_ARCH" -DskipTests 2>&1 | tail -8) || true
+    APP="$ROOT/forge-gui-ios/target/robovm-sim/$APP_EXEC.app"
+    BUILD_LOG="$ROOT/forge-gui-ios/target/robovm-sim-build.log"
+    rm -rf "$APP"
+    mkdir -p "$(dirname "$APP")"
+    echo "=== robovm install-only simulator build ($SIM_ARCH) ==="
+    # ipad-sim launches whichever legacy device type MobiVM selects and then
+    # attaches Maven to the app's console until the app exits. install builds
+    # the same simulator bundle without launching, so SIM_UDID remains the
+    # single source of truth and the pipeline can install it explicitly below.
+    if ! (cd "$ROOT/forge-gui-ios" && mvn robovm:install --settings "$SETTINGS" \
+        -Dmaven.repo.local="$CLONE" -Drobovm.archs="$SIM_ARCH" \
+        -Drobovm.installDir="$APP" -DskipTests > "$BUILD_LOG" 2>&1); then
+        echo "RoboVM simulator build failed:"
+        tail -40 "$BUILD_LOG"
+        exit 1
+    fi
+    tail -12 "$BUILD_LOG"
     mv -f "$OSLOG_LIB.committed" "$OSLOG_LIB"; trap - EXIT
 
-    APP="$ROOT/forge-gui-ios/target/robovm.tmp/$APP_EXEC.app"
-    if [ "$SIM_ARCH" = "arm64-simulator" ]; then
-        assemble_arm64_sim_app
-    fi
     [ -f "$APP/$APP_EXEC" ] || { echo "APP BINARY MISSING - build failed"; exit 1; }
 
     echo "=== install + launch on simulator $SIM_UDID ==="

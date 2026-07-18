@@ -16,7 +16,7 @@ on every merge, this pipeline transforms the **built jars**:
 
 ```bash
 # after every upstream merge / module rebuild:
-mvn clean install -pl forge-core,forge-game,forge-gui,forge-gui-mobile,forge-ai -DskipTests
+mvn clean install -pl .,forge-core,forge-game,forge-gui,forge-gui-mobile,forge-ai -DskipTests
 pipeline/ios-pipeline.sh classpath     # transform -> tmp/ios-m2, prints audit
 pipeline/ios-pipeline.sh sim           # build + install + launch simulator
 pipeline/ios-pipeline.sh device        # build + sign + install to iPad
@@ -24,7 +24,12 @@ pipeline/ios-pipeline.sh device        # build + sign + install to iPad
 
 First run bootstraps third-party jars (JvmDowngrader, streamsupport,
 ThreeTen) into `tmp/jvmdg/` automatically. Device IDs / signing identity are
-env-overridable — see the header of `ios-pipeline.sh`.
+env-overridable. Copy `.env.example` to `.env`, fill in the local values, and
+see the header of `ios-pipeline.sh` for the full list.
+
+The leading `.` in the Maven project list is required on a fresh machine: it
+installs Forge's parent POM before the iOS module resolves the five child
+artifacts.
 
 ## Key facts (hard-won — see git history of feature/ios-jvmdg-pipeline)
 
