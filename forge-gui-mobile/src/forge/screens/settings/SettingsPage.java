@@ -181,6 +181,13 @@ public class SettingsPage extends TabPage<SettingsScreen> {
                     "Open",
                     () -> Forge.getDeviceAdapter().showNativeDiagnostics()), 0);
         }
+        if (Forge.getDeviceAdapter().supportsNativeDeckLibrary()) {
+            lstSettings.addItem(new ActionSetting(
+                    "Native Deck Library",
+                    "Browse a read-only snapshot of your decks in a native SwiftUI screen.",
+                    "Open",
+                    () -> Forge.getDeviceAdapter().showNativeDeckLibrary()), 0);
+        }
 
         // GAMEPLAY OPTIONS TAB
         lstSettings.addItem(new CustomSelectSetting(FPref.MULLIGAN_RULE,

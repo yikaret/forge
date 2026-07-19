@@ -36,6 +36,8 @@ public interface IDeviceAdapter {
 
     default boolean supportsNativeDiagnostics() { return false; }
     default void showNativeDiagnostics() { }
+    default boolean supportsNativeDeckLibrary() { return false; }
+    default void showNativeDeckLibrary() { }
 
     Set<String> LWJGL_SUPPORTED_AUDIO_TYPES = Set.of(".wav", ".mp3", ".ogg");
     default boolean isSupportedAudioFormat(File file) {

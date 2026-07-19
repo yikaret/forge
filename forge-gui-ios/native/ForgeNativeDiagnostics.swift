@@ -12,7 +12,7 @@ public final class ForgeNativeDiagnostics: NSObject {
         details: String
     ) {
         DispatchQueue.main.async {
-            guard let presenter = topViewController() else { return }
+            guard let presenter = ForgeNativePresenter.topViewController() else { return }
 
             let view = ForgeDiagnosticsView(
                 version: version,
@@ -26,8 +26,26 @@ public final class ForgeNativeDiagnostics: NSObject {
             presenter.present(controller, animated: true)
         }
     }
+}
 
-    private static func topViewController(
+@objc(ForgeNativeDeckLibrary)
+public final class ForgeNativeDeckLibrary: NSObject {
+    @objc(presentWithDecksJSON:)
+    public static func present(decksJSON: String) {
+        let data = Data(decksJSON.utf8)
+        let decks = (try? JSONDecoder().decode([NativeDeckSummary].self, from: data)) ?? []
+
+        DispatchQueue.main.async {
+            guard let presenter = ForgeNativePresenter.topViewController() else { return }
+            let controller = UIHostingController(rootView: ForgeDeckLibraryView(decks: decks))
+            controller.modalPresentationStyle = .formSheet
+            presenter.present(controller, animated: true)
+        }
+    }
+}
+
+private enum ForgeNativePresenter {
+    static func topViewController(
         from base: UIViewController? = keyWindow()?.rootViewController
     ) -> UIViewController? {
         if let navigation = base as? UINavigationController {
@@ -47,6 +65,101 @@ public final class ForgeNativeDiagnostics: NSObject {
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
             .first { $0.isKeyWindow }
+    }
+}
+
+private struct NativeDeckSummary: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let category: String
+    let path: String
+    let mainCount: Int
+    let sideboardCount: Int
+    let commanderCount: Int
+}
+
+private struct ForgeDeckLibraryView: View {
+    @Environment(\.presentationMode) private var presentationMode
+
+    let decks: [NativeDeckSummary]
+
+    private var categories: [String] {
+        decks.reduce(into: []) { result, deck in
+            if !result.contains(deck.category) {
+                result.append(deck.category)
+            }
+        }
+    }
+
+    private var deckCountLabel: String {
+        decks.count == 1 ? "1 saved deck" : "\(decks.count) saved decks"
+    }
+
+    var body: some View {
+        NavigationView {
+            List {
+                if decks.isEmpty {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("No saved decks")
+                                .font(.headline)
+                            Text("Create or import a deck in Forge, then reopen this native preview.")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 12)
+                    }
+                } else {
+                    ForEach(categories, id: \.self) { category in
+                        Section(header: Text(category)) {
+                            ForEach(decks.filter { $0.category == category }) { deck in
+                                NativeDeckRow(deck: deck)
+                            }
+                        }
+                    }
+                }
+
+                Section(footer: Text("Read-only preview · \(deckCountLabel)")) {
+                    EmptyView()
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("Deck Library")
+            .navigationBarItems(trailing: Button("Done") {
+                presentationMode.wrappedValue.dismiss()
+            })
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+}
+
+private struct NativeDeckRow: View {
+    let deck: NativeDeckSummary
+
+    private var counts: String {
+        var values = ["\(deck.mainCount) main"]
+        if deck.commanderCount > 0 {
+            values.append("\(deck.commanderCount) commander")
+        }
+        if deck.sideboardCount > 0 {
+            values.append("\(deck.sideboardCount) sideboard")
+        }
+        return values.joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(deck.name)
+                .font(.headline)
+            Text(counts)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            if !deck.path.isEmpty {
+                Text(deck.path)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 3)
     }
 }
 

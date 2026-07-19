@@ -42,6 +42,12 @@ The pipeline compiles the Swift source into device or universal simulator
 static archives automatically. Gameplay and all existing navigation remain on
 the working libGDX path.
 
+The second vertical slice adds a native, read-only deck library. Forge copies
+user deck metadata into immutable summaries, serializes those summaries across
+the bridge, and SwiftUI groups them by deck category without retaining mutable
+Java deck objects. Constructed, Commander, Oathbreaker, Tiny Leaders, and Brawl
+storages are included, along with nested folder paths and section counts.
+
 This preserves Forge's mature game behavior and keeps upstream merges
 possible. A clean-room Swift rewrite would have to reproduce thousands of
 interacting rules, the AI, serialization, networking, and more than 33,000

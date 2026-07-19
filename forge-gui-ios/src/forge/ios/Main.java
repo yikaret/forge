@@ -465,6 +465,64 @@ public class Main extends IOSApplication.Delegate {
                     getNativeDiagnosticsDetails());
         }
 
+        @Override
+        public boolean supportsNativeDeckLibrary() {
+            return true;
+        }
+
+        @Override
+        public void showNativeDeckLibrary() {
+            Forge.refreshNativeDeckSummaries();
+            ForgeNativeDeckLibrary.present(encodeDeckSummaries(ForgeEngineFacade.getDecks()));
+        }
+
+        private static String encodeDeckSummaries(
+                final java.util.List<ForgeEngineFacade.DeckSummary> summaries) {
+            final StringBuilder json = new StringBuilder("[");
+            boolean first = true;
+            for (final ForgeEngineFacade.DeckSummary deck : summaries) {
+                if (!first) {
+                    json.append(',');
+                }
+                first = false;
+                json.append('{');
+                appendJsonString(json, "id", deck.getId()).append(',');
+                appendJsonString(json, "name", deck.getName()).append(',');
+                appendJsonString(json, "category", deck.getCategory()).append(',');
+                appendJsonString(json, "path", deck.getPath()).append(',');
+                json.append("\"mainCount\":").append(deck.getMainCount()).append(',');
+                json.append("\"sideboardCount\":").append(deck.getSideboardCount()).append(',');
+                json.append("\"commanderCount\":").append(deck.getCommanderCount());
+                json.append('}');
+            }
+            return json.append(']').toString();
+        }
+
+        private static StringBuilder appendJsonString(final StringBuilder json,
+                final String key, final String value) {
+            json.append('"').append(key).append("\":\"");
+            for (int i = 0; i < value.length(); i++) {
+                final char character = value.charAt(i);
+                switch (character) {
+                case '"': json.append("\\\""); break;
+                case '\\': json.append("\\\\"); break;
+                case '\b': json.append("\\b"); break;
+                case '\f': json.append("\\f"); break;
+                case '\n': json.append("\\n"); break;
+                case '\r': json.append("\\r"); break;
+                case '\t': json.append("\\t"); break;
+                default:
+                    if (character < 0x20) {
+                        json.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        json.append(character);
+                    }
+                    break;
+                }
+            }
+            return json.append('"');
+        }
+
         private String getNativeDiagnosticsDetails() {
             try {
                 org.robovm.apple.uikit.UIDevice device =

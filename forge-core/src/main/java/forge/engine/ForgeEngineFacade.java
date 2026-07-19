@@ -11,6 +11,11 @@ package forge.engine;
 
 import forge.util.BuildInfo;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Stable, UI-independent entry point for native clients of the Forge engine.
  *
@@ -63,14 +68,79 @@ public final class ForgeEngineFacade {
         }
     }
 
+    /** Immutable deck metadata safe to copy across a platform bridge. */
+    public static final class DeckSummary {
+        private final String id;
+        private final String name;
+        private final String category;
+        private final String path;
+        private final int mainCount;
+        private final int sideboardCount;
+        private final int commanderCount;
+
+        public DeckSummary(final String id0, final String name0, final String category0,
+                final String path0, final int mainCount0, final int sideboardCount0,
+                final int commanderCount0) {
+            id = normalize(id0);
+            name = normalize(name0);
+            category = normalize(category0);
+            path = normalizePath(path0);
+            mainCount = Math.max(0, mainCount0);
+            sideboardCount = Math.max(0, sideboardCount0);
+            commanderCount = Math.max(0, commanderCount0);
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public String getPath() {
+            return path;
+        }
+
+        public int getMainCount() {
+            return mainCount;
+        }
+
+        public int getSideboardCount() {
+            return sideboardCount;
+        }
+
+        public int getCommanderCount() {
+            return commanderCount;
+        }
+    }
+
     private static volatile Status status = new Status(
             Phase.STARTING, "Unknown", BuildInfo.getVersionString(), 0, "Engine process created");
+    private static volatile List<DeckSummary> decks = Collections.emptyList();
 
     private ForgeEngineFacade() {
     }
 
     public static Status getStatus() {
         return status;
+    }
+
+    public static List<DeckSummary> getDecks() {
+        return decks;
+    }
+
+    public static void publishDecks(final Collection<DeckSummary> summaries) {
+        final List<DeckSummary> snapshot = new ArrayList<>();
+        if (summaries != null) {
+            snapshot.addAll(summaries);
+            snapshot.removeAll(Collections.singleton(null));
+        }
+        decks = Collections.unmodifiableList(snapshot);
     }
 
     public static void beginInitialization(final String platform) {
@@ -92,5 +162,9 @@ public final class ForgeEngineFacade {
 
     private static String normalize(final String value) {
         return value == null || value.trim().isEmpty() ? "Unknown" : value.trim();
+    }
+
+    private static String normalizePath(final String value) {
+        return value == null ? "" : value.trim();
     }
 }

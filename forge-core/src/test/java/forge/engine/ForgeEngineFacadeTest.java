@@ -9,6 +9,9 @@
  */
 package forge.engine;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -38,5 +41,26 @@ public class ForgeEngineFacadeTest {
         Assert.assertEquals(failed.getPhase(), ForgeEngineFacade.Phase.FAILED);
         Assert.assertEquals(failed.getPlatform(), "iOS");
         Assert.assertEquals(failed.getDetail(), "Database unavailable");
+    }
+
+    @Test
+    public void publishesDefensiveDeckSummarySnapshots() {
+        final List<ForgeEngineFacade.DeckSummary> source = new ArrayList<>();
+        source.add(new ForgeEngineFacade.DeckSummary(
+                "Commander||Alela", "Alela", "Commander", "", 99, 10, 1));
+
+        ForgeEngineFacade.publishDecks(source);
+        final List<ForgeEngineFacade.DeckSummary> snapshot = ForgeEngineFacade.getDecks();
+        source.clear();
+
+        Assert.assertEquals(snapshot.size(), 1);
+        Assert.assertEquals(snapshot.get(0).getName(), "Alela");
+        Assert.assertEquals(snapshot.get(0).getMainCount(), 99);
+        Assert.assertEquals(snapshot.get(0).getSideboardCount(), 10);
+        Assert.assertEquals(snapshot.get(0).getCommanderCount(), 1);
+        Assert.expectThrows(UnsupportedOperationException.class, snapshot::clear);
+
+        ForgeEngineFacade.publishDecks(null);
+        Assert.assertTrue(ForgeEngineFacade.getDecks().isEmpty());
     }
 }

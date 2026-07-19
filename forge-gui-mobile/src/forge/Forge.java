@@ -23,6 +23,9 @@ import forge.adventure.util.Config;
 import forge.adventure.world.WorldSave;
 import forge.animation.ForgeAnimation;
 import forge.assets.*;
+import forge.deck.CardPool;
+import forge.deck.Deck;
+import forge.deck.DeckSection;
 import forge.engine.ForgeEngineFacade;
 import forge.error.ExceptionHandler;
 import forge.gamemodes.limited.BoosterDraft;
@@ -47,6 +50,7 @@ import forge.sound.MusicPlaylist;
 import forge.sound.SoundSystem;
 import forge.toolbox.*;
 import forge.util.*;
+import forge.util.storage.IStorage;
 import io.sentry.ScopeType;
 import io.sentry.Sentry;
 
@@ -420,6 +424,9 @@ public class Forge implements ApplicationListener {
         ForgeEngineFacade.markReady(
                 StaticData.instance().getCommonCards().getAllCards().size()
                 + StaticData.instance().getVariantCards().getAllCards().size());
+        if (deviceAdapter.supportsNativeDeckLibrary()) {
+            refreshNativeDeckSummaries();
+        }
         //adjust height modifier
         adjustHeightModifier(getScreenWidth(), getScreenHeight());
 
@@ -474,6 +481,41 @@ public class Forge implements ApplicationListener {
                 });
             });
         }));
+    }
+
+    /** Publishes a read-only copy of user deck metadata for native clients. */
+    public static void refreshNativeDeckSummaries() {
+        final List<ForgeEngineFacade.DeckSummary> summaries = new ArrayList<>();
+        addNativeDeckSummaries("Constructed", "", FModel.getDecks().getConstructed(), summaries);
+        addNativeDeckSummaries("Commander", "", FModel.getDecks().getCommander(), summaries);
+        addNativeDeckSummaries("Oathbreaker", "", FModel.getDecks().getOathbreaker(), summaries);
+        addNativeDeckSummaries("Tiny Leaders", "", FModel.getDecks().getTinyLeaders(), summaries);
+        addNativeDeckSummaries("Brawl", "", FModel.getDecks().getBrawl(), summaries);
+        ForgeEngineFacade.publishDecks(summaries);
+    }
+
+    private static void addNativeDeckSummaries(final String category, final String path,
+            final IStorage<Deck> storage, final List<ForgeEngineFacade.DeckSummary> summaries) {
+        for (final IStorage<Deck> folder : storage.getFolders()) {
+            final String folderPath = path.isEmpty() ? folder.getName() : path + "/" + folder.getName();
+            addNativeDeckSummaries(category, folderPath, folder, summaries);
+        }
+        for (final Deck deck : storage) {
+            final String id = category + "|" + path + "|" + deck.getName();
+            summaries.add(new ForgeEngineFacade.DeckSummary(
+                    id,
+                    deck.getName(),
+                    category,
+                    path,
+                    deck.getMain().countAll(),
+                    countDeckSection(deck, DeckSection.Sideboard),
+                    countDeckSection(deck, DeckSection.Commander)));
+        }
+    }
+
+    private static int countDeckSection(final Deck deck, final DeckSection section) {
+        final CardPool pool = deck.get(section);
+        return pool == null ? 0 : pool.countAll();
     }
 
     public static void setCursor(TextureRegion textureRegion, String name) {
