@@ -12,9 +12,23 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.robovm.apple.foundation.NSAutoreleasePool;
 import org.robovm.apple.foundation.NSTimeZone;
 import org.robovm.apple.foundation.NSBundle;
+import org.robovm.apple.foundation.NSArray;
 import org.robovm.apple.foundation.NSProcessInfo;
+import org.robovm.apple.foundation.NSURL;
+import org.robovm.apple.dispatch.DispatchQueue;
+import org.robovm.apple.uikit.UIAlertAction;
+import org.robovm.apple.uikit.UIAlertActionStyle;
+import org.robovm.apple.uikit.UIAlertController;
+import org.robovm.apple.uikit.UIAlertControllerStyle;
 import org.robovm.apple.uikit.UIApplication;
+import org.robovm.apple.uikit.UIDocumentPickerDelegateAdapter;
+import org.robovm.apple.uikit.UIDocumentPickerViewController;
+import org.robovm.apple.uikit.UINavigationController;
 import org.robovm.apple.uikit.UIPasteboard;
+import org.robovm.apple.uikit.UITabBarController;
+import org.robovm.apple.uikit.UIViewController;
+import org.robovm.apple.uikit.UIWindow;
+import org.robovm.apple.uniformtypeid.UTType;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -443,6 +457,8 @@ public class Main extends IOSApplication.Delegate {
 
     private static final class IOSAdapter implements IDeviceAdapter {
         private static final int IO_BUFFER_SIZE = 8192;  // 8 KB buffer for file I/O operations
+        private UIDocumentPickerViewController deckImportPicker;
+        private UIDocumentPickerDelegateAdapter deckImportDelegate;
 
         @Override
         public String getPlatformName() {
@@ -474,6 +490,135 @@ public class Main extends IOSApplication.Delegate {
         public void showNativeDeckLibrary() {
             Forge.refreshNativeDeckSummaries();
             ForgeNativeDeckLibrary.present(encodeDeckSummaries(ForgeEngineFacade.getDecks()));
+        }
+
+        @Override
+        public boolean supportsNativeDeckImport() {
+            return true;
+        }
+
+        @Override
+        public void showNativeDeckImport() {
+            DispatchQueue.getMainQueue().async(this::presentDeckImportPicker);
+        }
+
+        private void presentDeckImportPicker() {
+            final String bundleId = NSBundle.getMainBundle().getBundleIdentifier();
+            UTType deckType = UTType.createUsingIdentifier(bundleId + ".deck");
+            if (deckType == null) {
+                deckType = UTType.createUsingFilenameExtension("dck", UTType.CoreTypes.PlainText());
+            }
+
+            deckImportPicker = UIDocumentPickerViewController.createForOpeningContentTypes(
+                    new NSArray<>(deckType), true);
+            deckImportPicker.setAllowsMultipleSelection(false);
+            deckImportPicker.setShouldShowFileExtensions(true);
+            deckImportDelegate = new UIDocumentPickerDelegateAdapter() {
+                @Override
+                public void didPickDocuments(final UIDocumentPickerViewController controller,
+                        final NSArray<NSURL> urls) {
+                    handlePickedDeck(controller, urls == null || urls.isEmpty() ? null : urls.first());
+                }
+
+                @Override
+                public void didPickDocument(final UIDocumentPickerViewController controller,
+                        final NSURL url) {
+                    handlePickedDeck(controller, url);
+                }
+
+                @Override
+                public void wasCancelled(final UIDocumentPickerViewController controller) {
+                    clearDeckImportPicker();
+                }
+            };
+            deckImportPicker.setDelegate(deckImportDelegate);
+
+            final UIViewController presenter = getTopViewController();
+            if (presenter == null) {
+                clearDeckImportPicker();
+                showDeckImportResult(ForgeEngineFacade.DeckImportResult.failed(
+                        "The iOS document picker is currently unavailable."));
+                return;
+            }
+            presenter.presentViewController(deckImportPicker, true, null);
+        }
+
+        private void handlePickedDeck(final UIDocumentPickerViewController controller, final NSURL url) {
+            ForgeEngineFacade.DeckImportResult result;
+            if (url == null || !url.isFileURL()) {
+                result = ForgeEngineFacade.DeckImportResult.failed("No readable deck file was selected.");
+            } else {
+                final boolean securityAccess = url.startAccessingSecurityScopedResource();
+                try {
+                    result = Forge.importNativeDeck(url.getPath());
+                } finally {
+                    if (securityAccess) {
+                        url.stopAccessingSecurityScopedResource();
+                    }
+                }
+            }
+
+            clearDeckImportPicker();
+            final ForgeEngineFacade.DeckImportResult finalResult = result;
+            controller.dismissViewController(true, () -> showDeckImportResult(finalResult));
+        }
+
+        private void clearDeckImportPicker() {
+            if (deckImportPicker != null) {
+                deckImportPicker.setDelegate(null);
+            }
+            deckImportDelegate = null;
+            deckImportPicker = null;
+        }
+
+        private void showDeckImportResult(final ForgeEngineFacade.DeckImportResult result) {
+            final String title = result.isSuccess() ? "Deck Imported" : "Couldn’t Import Deck";
+            String message = result.isSuccess()
+                    ? "Saved \"" + result.getDeckName() + "\" to " + result.getCategory() + "."
+                    : result.getDetail();
+            if (result.isRenamed()) {
+                message += "\n\nThe deck was renamed to avoid replacing an existing deck.";
+            }
+
+            final UIAlertController alert = new UIAlertController(
+                    title, message, UIAlertControllerStyle.Alert);
+            if (result.isSuccess()) {
+                alert.addAction(new UIAlertAction("View Library", UIAlertActionStyle.Default,
+                        action -> DispatchQueue.getMainQueue().async(this::showNativeDeckLibrary)));
+            }
+            alert.addAction(new UIAlertAction("Done", UIAlertActionStyle.Cancel, null));
+
+            final UIViewController presenter = getTopViewController();
+            if (presenter != null) {
+                presenter.presentViewController(alert, true, null);
+            }
+        }
+
+        private static UIViewController getTopViewController() {
+            final UIApplication application = UIApplication.getSharedApplication();
+            UIWindow keyWindow = application.getKeyWindow();
+            if (keyWindow == null) {
+                for (final UIWindow window : application.getWindows()) {
+                    if (window.isKeyWindow()) {
+                        keyWindow = window;
+                        break;
+                    }
+                }
+            }
+            return keyWindow == null ? null : getTopViewController(keyWindow.getRootViewController());
+        }
+
+        private static UIViewController getTopViewController(final UIViewController base) {
+            if (base instanceof UINavigationController) {
+                return getTopViewController(((UINavigationController) base).getVisibleViewController());
+            }
+            if (base instanceof UITabBarController) {
+                return getTopViewController(((UITabBarController) base).getSelectedViewController());
+            }
+            if (base != null && base.getPresentedViewController() != null) {
+                return getTopViewController(base.getPresentedViewController());
+            }
+            return base;
         }
 
         private static String encodeDeckSummaries(

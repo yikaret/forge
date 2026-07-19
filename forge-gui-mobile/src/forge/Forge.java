@@ -25,7 +25,9 @@ import forge.animation.ForgeAnimation;
 import forge.assets.*;
 import forge.deck.CardPool;
 import forge.deck.Deck;
+import forge.deck.DeckFormat;
 import forge.deck.DeckSection;
+import forge.deck.io.DeckSerializer;
 import forge.engine.ForgeEngineFacade;
 import forge.error.ExceptionHandler;
 import forge.gamemodes.limited.BoosterDraft;
@@ -54,6 +56,7 @@ import forge.util.storage.IStorage;
 import io.sentry.ScopeType;
 import io.sentry.Sentry;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
@@ -492,6 +495,104 @@ public class Forge implements ApplicationListener {
         addNativeDeckSummaries("Tiny Leaders", "", FModel.getDecks().getTinyLeaders(), summaries);
         addNativeDeckSummaries("Brawl", "", FModel.getDecks().getBrawl(), summaries);
         ForgeEngineFacade.publishDecks(summaries);
+    }
+
+    /** Parses and persists one Forge deck selected by a native platform picker. */
+    public static ForgeEngineFacade.DeckImportResult importNativeDeck(final String filePath) {
+        if (!afterDBloaded) {
+            return ForgeEngineFacade.DeckImportResult.failed("Forge is still loading. Try again in a moment.");
+        }
+        if (filePath == null || !filePath.toLowerCase(Locale.ROOT).endsWith(".dck")) {
+            return ForgeEngineFacade.DeckImportResult.failed("Select a Forge deck file ending in .dck.");
+        }
+
+        final File source = new File(filePath);
+        if (!source.isFile() || !source.canRead()) {
+            return ForgeEngineFacade.DeckImportResult.failed("The selected deck file could not be read.");
+        }
+
+        try {
+            final Deck deck = DeckSerializer.fromFile(source);
+            if (deck == null || !deck.hasName() || deck.getName().trim().isEmpty()) {
+                return ForgeEngineFacade.DeckImportResult.failed("The selected file is not a Forge deck.");
+            }
+
+            // Force deferred sections to parse while the selected file is still available.
+            if (deck.isEmpty()) {
+                return ForgeEngineFacade.DeckImportResult.failed(
+                        "The deck did not contain any cards recognized by this Forge installation.");
+            }
+
+            final NativeDeckDestination destination = getNativeDeckDestination(deck);
+            final String originalName = deck.getName();
+            final String availableName = getAvailableDeckName(destination.storage, originalName);
+            final boolean renamed = !originalName.equals(availableName);
+            if (renamed) {
+                deck.setName(availableName);
+            }
+
+            destination.storage.add(deck);
+            refreshNativeDeckSummaries();
+            return ForgeEngineFacade.DeckImportResult.imported(
+                    deck.getName(), destination.category, renamed);
+        } catch (Exception exception) {
+            exception.printStackTrace();
+            return ForgeEngineFacade.DeckImportResult.failed(
+                    "Forge could not parse the selected deck. The file may be damaged or incomplete.");
+        }
+    }
+
+    private static NativeDeckDestination getNativeDeckDestination(final Deck deck) {
+        final DeckFormat format = deck.getDeckFormat();
+        if (format == DeckFormat.Oathbreaker) {
+            return new NativeDeckDestination("Oathbreaker", FModel.getDecks().getOathbreaker());
+        }
+        if (format == DeckFormat.TinyLeaders) {
+            return new NativeDeckDestination("Tiny Leaders", FModel.getDecks().getTinyLeaders());
+        }
+        if (format == DeckFormat.Brawl) {
+            return new NativeDeckDestination("Brawl", FModel.getDecks().getBrawl());
+        }
+        if (format == DeckFormat.Commander || deck.has(DeckSection.Commander)) {
+            return new NativeDeckDestination("Commander", FModel.getDecks().getCommander());
+        }
+        return new NativeDeckDestination("Constructed", FModel.getDecks().getConstructed());
+    }
+
+    private static String getAvailableDeckName(final IStorage<Deck> storage, final String originalName) {
+        if (!isDeckNameUnavailable(storage, originalName)) {
+            return originalName;
+        }
+
+        String candidate = originalName + " (Imported)";
+        int copyNumber = 2;
+        while (isDeckNameUnavailable(storage, candidate)) {
+            candidate = originalName + " (Imported " + copyNumber++ + ")";
+        }
+        return candidate;
+    }
+
+    private static boolean isDeckNameUnavailable(final IStorage<Deck> storage, final String candidate) {
+        if (storage.contains(candidate)) {
+            return true;
+        }
+        final String candidateFileName = new Deck(candidate).getBestFileName();
+        for (final Deck deck : storage) {
+            if (candidateFileName.equalsIgnoreCase(deck.getBestFileName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class NativeDeckDestination {
+        private final String category;
+        private final IStorage<Deck> storage;
+
+        private NativeDeckDestination(final String category0, final IStorage<Deck> storage0) {
+            category = category0;
+            storage = storage0;
+        }
     }
 
     private static void addNativeDeckSummaries(final String category, final String path,

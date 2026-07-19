@@ -63,4 +63,19 @@ public class ForgeEngineFacadeTest {
         ForgeEngineFacade.publishDecks(null);
         Assert.assertTrue(ForgeEngineFacade.getDecks().isEmpty());
     }
+
+    @Test
+    public void publishesImmutableDeckImportResults() {
+        final ForgeEngineFacade.DeckImportResult imported =
+                ForgeEngineFacade.DeckImportResult.imported("Alela (Imported)", "Commander", true);
+        final ForgeEngineFacade.DeckImportResult failed =
+                ForgeEngineFacade.DeckImportResult.failed("The selected file is not a Forge deck.");
+
+        Assert.assertTrue(imported.isSuccess());
+        Assert.assertEquals(imported.getDeckName(), "Alela (Imported)");
+        Assert.assertEquals(imported.getCategory(), "Commander");
+        Assert.assertTrue(imported.isRenamed());
+        Assert.assertFalse(failed.isSuccess());
+        Assert.assertEquals(failed.getDetail(), "The selected file is not a Forge deck.");
+    }
 }

@@ -69,6 +69,26 @@
     <true/>
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>${app.id}.deck</string>
+            <key>UTTypeDescription</key>
+            <string>Forge Deck</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>dck</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
     <key>UIUserInterfaceStyle</key>
     <string>Light</string>
     <key>NSLocalNetworkUsageDescription</key>

@@ -188,6 +188,13 @@ public class SettingsPage extends TabPage<SettingsScreen> {
                     "Open",
                     () -> Forge.getDeviceAdapter().showNativeDeckLibrary()), 0);
         }
+        if (Forge.getDeviceAdapter().supportsNativeDeckImport()) {
+            lstSettings.addItem(new ActionSetting(
+                    "Import Deck",
+                    "Choose a .dck file, validate it with Forge, and add it to your deck library.",
+                    "Choose",
+                    () -> Forge.getDeviceAdapter().showNativeDeckImport()), 0);
+        }
 
         // GAMEPLAY OPTIONS TAB
         lstSettings.addItem(new CustomSelectSetting(FPref.MULLIGAN_RULE,

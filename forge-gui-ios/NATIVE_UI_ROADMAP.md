@@ -48,6 +48,12 @@ the bridge, and SwiftUI groups them by deck category without retaining mutable
 Java deck objects. Constructed, Commander, Oathbreaker, Tiny Leaders, and Brawl
 storages are included, along with nested folder paths and section counts.
 
+The library now has a native Files import path as well. iOS supplies an
+app-owned copy of a selected `.dck` document, Forge parses its deferred card
+sections against the loaded database, chooses the appropriate user storage,
+renames conflicts without overwriting, persists through the normal serializer,
+and republishes the immutable deck snapshot.
+
 This preserves Forge's mature game behavior and keeps upstream merges
 possible. A clean-room Swift rewrite would have to reproduce thousands of
 interacting rules, the AI, serialization, networking, and more than 33,000

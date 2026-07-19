@@ -38,6 +38,8 @@ public interface IDeviceAdapter {
     default void showNativeDiagnostics() { }
     default boolean supportsNativeDeckLibrary() { return false; }
     default void showNativeDeckLibrary() { }
+    default boolean supportsNativeDeckImport() { return false; }
+    default void showNativeDeckImport() { }
 
     Set<String> LWJGL_SUPPORTED_AUDIO_TYPES = Set.of(".wav", ".mp3", ".ogg");
     default boolean isSupportedAudioFormat(File file) {

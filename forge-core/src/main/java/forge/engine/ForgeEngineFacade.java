@@ -119,6 +119,53 @@ public final class ForgeEngineFacade {
         }
     }
 
+    /** Immutable result of importing a deck through a platform integration. */
+    public static final class DeckImportResult {
+        private final boolean success;
+        private final String deckName;
+        private final String category;
+        private final String detail;
+        private final boolean renamed;
+
+        private DeckImportResult(final boolean success0, final String deckName0,
+                final String category0, final String detail0, final boolean renamed0) {
+            success = success0;
+            deckName = normalize(deckName0);
+            category = normalize(category0);
+            detail = normalize(detail0);
+            renamed = renamed0;
+        }
+
+        public static DeckImportResult imported(final String deckName,
+                final String category, final boolean renamed) {
+            return new DeckImportResult(true, deckName, category, "Deck imported", renamed);
+        }
+
+        public static DeckImportResult failed(final String detail) {
+            return new DeckImportResult(false, "Unknown", "Unknown", detail, false);
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getDeckName() {
+            return deckName;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public String getDetail() {
+            return detail;
+        }
+
+        public boolean isRenamed() {
+            return renamed;
+        }
+    }
+
     private static volatile Status status = new Status(
             Phase.STARTING, "Unknown", BuildInfo.getVersionString(), 0, "Engine process created");
     private static volatile List<DeckSummary> decks = Collections.emptyList();
