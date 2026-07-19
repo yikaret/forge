@@ -374,6 +374,8 @@ build_module() {
 # in a simulator flavor and restores the committed lib on exit.
 OSLOG_SRC="$ROOT/forge-gui-ios/oslog_wrapper/ForgeOSLog.m"
 OSLOG_LIB="$ROOT/forge-gui-ios/libs/libForgeOSLog.a"
+NATIVE_UI_SRC="$ROOT/forge-gui-ios/native/ForgeNativeDiagnostics.swift"
+NATIVE_UI_LIB="$ROOT/forge-gui-ios/libs/libForgeNativeUI.a"
 
 build_oslog() { # <device|sim>  -> (over)writes $OSLOG_LIB with that flavor
     local target="$1" work; work="$(mktemp -d)"
@@ -391,6 +393,30 @@ build_oslog() { # <device|sim>  -> (over)writes $OSLOG_LIB with that flavor
     fi
     rm -rf "$work"
     echo "built libForgeOSLog.a ($target):$(lipo -info "$OSLOG_LIB" | sed 's/.*://')"
+}
+
+build_native_ui() { # <device|sim> -> builds the SwiftUI bridge archive
+    local target="$1" work sdk arch
+    work="$(mktemp -d)"
+    if [ "$target" = "sim" ]; then
+        sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+        for arch in arm64 x86_64; do
+            xcrun --sdk iphonesimulator swiftc -swift-version 5 -parse-as-library -O \
+                -emit-object "$NATIVE_UI_SRC" -module-name ForgeNativeUI \
+                -target "$arch-apple-ios14.0-simulator" -sdk "$sdk" \
+                -o "$work/$arch.o"
+            xcrun libtool -static -o "$work/$arch.a" "$work/$arch.o"
+        done
+        lipo -create "$work/arm64.a" "$work/x86_64.a" -output "$NATIVE_UI_LIB"
+    else
+        sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+        xcrun --sdk iphoneos swiftc -swift-version 5 -parse-as-library -O \
+            -emit-object "$NATIVE_UI_SRC" -module-name ForgeNativeUI \
+            -target arm64-apple-ios14.0 -sdk "$sdk" -o "$work/arm64.o"
+        xcrun libtool -static -o "$NATIVE_UI_LIB" "$work/arm64.o"
+    fi
+    rm -rf "$work"
+    echo "built libForgeNativeUI.a ($target):$(lipo -info "$NATIVE_UI_LIB" | sed 's/.*://')"
 }
 
 prep_build() {
@@ -413,6 +439,7 @@ sim() {
     cp "$OSLOG_LIB" "$OSLOG_LIB.committed"
     trap 'mv -f "$OSLOG_LIB.committed" "$OSLOG_LIB" 2>/dev/null || true' EXIT
     build_oslog sim
+    build_native_ui sim
     APP="$ROOT/forge-gui-ios/target/robovm-sim/$APP_EXEC.app"
     BUILD_LOG="$ROOT/forge-gui-ios/target/robovm-sim-build.log"
     rm -rf "$APP"
@@ -445,6 +472,7 @@ sim() {
 device() {
     require_env IPAD_UDID SIGN_ID PROFILE TEAM_ID
     prep_build
+    build_native_ui device
     echo "=== robovm ios-device build (deploy attempt may fail: >1 iPad) ==="
     (cd "$ROOT/forge-gui-ios" && mvn robovm:ios-device --settings "$SETTINGS" \
         -Dmaven.repo.local="$CLONE" -DskipTests 2>&1 | tail -8) || true
@@ -509,6 +537,7 @@ ipa() {
         -pl .,forge-core,forge-game,forge-gui,forge-gui-mobile,forge-ai -DskipTests)
     classpath
     prep_build
+    build_native_ui device
     echo "=== robovm:create-ipa (unsigned) ==="
     (cd "$ROOT/forge-gui-ios" && mvn robovm:create-ipa --settings "$SETTINGS" \
         -Dmaven.repo.local="$CLONE" -DskipTests \

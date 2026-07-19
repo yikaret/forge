@@ -174,6 +174,13 @@ public class SettingsPage extends TabPage<SettingsScreen> {
         lstSettings.addItem(new BooleanSetting(FPref.USE_SENTRY,
             Forge.getLocalizer().getMessage("lblAutomaticBugReports"),
             Forge.getLocalizer().getMessage("nlAutomaticBugReports")), 0);
+        if (Forge.getDeviceAdapter().supportsNativeDiagnostics()) {
+            lstSettings.addItem(new ActionSetting(
+                    "Native iOS Diagnostics",
+                    "View engine and device information in a native SwiftUI screen.",
+                    "Open",
+                    () -> Forge.getDeviceAdapter().showNativeDiagnostics()), 0);
+        }
 
         // GAMEPLAY OPTIONS TAB
         lstSettings.addItem(new CustomSelectSetting(FPref.MULLIGAN_RULE,
@@ -803,6 +810,30 @@ public class SettingsPage extends TabPage<SettingsScreen> {
                 checked = FModel.getNetPreferences().getPrefBoolean((ForgeNetPreferences.FNetPref) pref);
             }
             FCheckBox.drawCheckBox(g, SettingsScreen.DESC_COLOR, color, checked, x, y, w, h);
+        }
+    }
+
+    private class ActionSetting extends Setting {
+        private final String value;
+        private final Runnable action;
+
+        ActionSetting(final String label0, final String description0,
+                final String value0, final Runnable action0) {
+            super(null, label0, description0);
+            value = value0;
+            action = action0;
+        }
+
+        @Override
+        public void select() {
+            action.run();
+        }
+
+        @Override
+        public void drawPrefValue(final Graphics g, final FSkinFont font,
+                final FSkinColor color, final float x, final float y,
+                final float width, final float height) {
+            g.drawText(value, font, color, x, y, width, height, false, Align.right, false);
         }
     }
 

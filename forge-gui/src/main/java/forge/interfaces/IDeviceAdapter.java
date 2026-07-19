@@ -12,6 +12,7 @@ import java.util.Date;
 import java.util.Set;
 
 public interface IDeviceAdapter {
+    default String getPlatformName() { return "Unknown"; }
     boolean isConnectedToInternet();
     boolean isConnectedToWifi();
     boolean isTablet();
@@ -32,6 +33,9 @@ public interface IDeviceAdapter {
     UpnpServiceConfiguration getUpnpPlatformService();
     boolean needFileAccess();
     void requestFileAcces();
+
+    default boolean supportsNativeDiagnostics() { return false; }
+    default void showNativeDiagnostics() { }
 
     Set<String> LWJGL_SUPPORTED_AUDIO_TYPES = Set.of(".wav", ".mp3", ".ogg");
     default boolean isSupportedAudioFormat(File file) {

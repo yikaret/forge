@@ -26,6 +26,22 @@ Existing libGDX battlefield remains available as a UIKit child view while
 individual screens are migrated.
 ```
 
+## Implemented first slice
+
+The first vertical slice now proves the complete bridge:
+
+- `ForgeEngineFacade` publishes an immutable lifecycle snapshot from
+  `forge-core`, with transition tests;
+- mobile startup publishes loading and ready states plus the loaded card count;
+- iOS Settings exposes a platform capability instead of importing iOS code;
+- RoboVM calls an Objective-C-visible Swift presenter; and
+- SwiftUI renders a native diagnostics/about sheet using the facade snapshot
+  and real `UIDevice` / `NSProcessInfo` data.
+
+The pipeline compiles the Swift source into device or universal simulator
+static archives automatically. Gameplay and all existing navigation remain on
+the working libGDX path.
+
 This preserves Forge's mature game behavior and keeps upstream merges
 possible. A clean-room Swift rewrite would have to reproduce thousands of
 interacting rules, the AI, serialization, networking, and more than 33,000

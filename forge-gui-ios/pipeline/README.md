@@ -31,6 +31,10 @@ The leading `.` in the Maven project list is required on a fresh machine: it
 installs Forge's parent POM before the iOS module resolves the five child
 artifacts.
 
+The simulator, device, and IPA modes also compile `native/*.swift` into
+`libs/libForgeNativeUI.a` for the requested Apple target. The generated archive
+is untracked; Xcode's Swift compiler is the only additional build input.
+
 ## Key facts (hard-won — see git history of feature/ios-jvmdg-pipeline)
 
 - JvmDowngrader `-c 51` (true Java 7 target) is a dead end: its 8→7 stub

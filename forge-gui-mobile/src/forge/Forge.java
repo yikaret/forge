@@ -23,6 +23,7 @@ import forge.adventure.util.Config;
 import forge.adventure.world.WorldSave;
 import forge.animation.ForgeAnimation;
 import forge.assets.*;
+import forge.engine.ForgeEngineFacade;
 import forge.error.ExceptionHandler;
 import forge.gamemodes.limited.BoosterDraft;
 import forge.gui.FThreads;
@@ -143,6 +144,7 @@ public class Forge implements ApplicationListener {
                 isPortraitMode = androidOrientation;
                 isTabletDevice = isTablet;
                 androidVersion = AndroidAPI;
+                ForgeEngineFacade.beginInitialization(deviceAdapter.getPlatformName());
             }
             if (hwInfo != null) {
                 totalDeviceRAM = hwInfo.getTotalRam();
@@ -415,6 +417,9 @@ public class Forge implements ApplicationListener {
         Gdx.input.setCatchKey(Keys.MENU, true);
 
         afterDBloaded = true;
+        ForgeEngineFacade.markReady(
+                StaticData.instance().getCommonCards().getAllCards().size()
+                + StaticData.instance().getVariantCards().getAllCards().size());
         //adjust height modifier
         adjustHeightModifier(getScreenWidth(), getScreenHeight());
 

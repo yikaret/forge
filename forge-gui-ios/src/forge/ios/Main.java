@@ -27,6 +27,7 @@ import com.badlogic.gdx.backends.iosrobovm.IOSFiles;
 
 import forge.Forge;
 import forge.assets.ImageCache;
+import forge.engine.ForgeEngineFacade;
 import forge.interfaces.IDeviceAdapter;
 
 public class Main extends IOSApplication.Delegate {
@@ -442,6 +443,42 @@ public class Main extends IOSApplication.Delegate {
 
     private static final class IOSAdapter implements IDeviceAdapter {
         private static final int IO_BUFFER_SIZE = 8192;  // 8 KB buffer for file I/O operations
+
+        @Override
+        public String getPlatformName() {
+            return "iOS";
+        }
+
+        @Override
+        public boolean supportsNativeDiagnostics() {
+            return true;
+        }
+
+        @Override
+        public void showNativeDiagnostics() {
+            ForgeEngineFacade.Status status = ForgeEngineFacade.getStatus();
+            ForgeNativeDiagnostics.present(
+                    status.getVersion(),
+                    status.getPhase().name(),
+                    String.valueOf(status.getCardCount()),
+                    status.getPlatform(),
+                    getNativeDiagnosticsDetails());
+        }
+
+        private String getNativeDiagnosticsDetails() {
+            try {
+                org.robovm.apple.uikit.UIDevice device =
+                        org.robovm.apple.uikit.UIDevice.getCurrentDevice();
+                NSProcessInfo process = NSProcessInfo.getSharedProcessInfo();
+                long memoryMb = process.getPhysicalMemory() / (1024L * 1024L);
+                return "Device: " + device.getModel()
+                        + "\nOS: " + device.getSystemName() + " " + device.getSystemVersion()
+                        + "\nPhysical RAM: " + memoryMb + " MB"
+                        + "\nProcessors: " + process.getActiveProcessorCount();
+            } catch (Throwable t) {
+                return "iOS device information unavailable: " + t.getMessage();
+            }
+        }
 
         @Override
         public boolean isConnectedToInternet() {

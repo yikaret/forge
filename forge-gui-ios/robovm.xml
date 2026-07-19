@@ -106,6 +106,7 @@
   </frameworkPaths>
   <libs>
     <lib>libs/libForgeOSLog.a</lib>
+    <lib>libs/libForgeNativeUI.a</lib>
   </libs>
   <exportedSymbols>
     <symbol>forge_os_log_public</symbol>
@@ -125,5 +126,6 @@
     <framework>AVFoundation</framework>
     <!-- gdx-controllers-ios (adventure mode gamepad support) uses GCController -->
     <framework>GameController</framework>
+    <framework>SwiftUI</framework>
   </frameworks>
 </config>
